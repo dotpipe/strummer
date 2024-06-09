@@ -194,7 +194,7 @@
     </div>
     <script>
         let audioContext;
-        const selectedNotes = [];
+        let selectedNotes = [];
         let recordedSetups = [];
         let currentStep = -1;
         const NUM_FRETS = 24;
@@ -211,7 +211,7 @@
             };
             reader.readAsText(file);
         }
-        
+
         function displaySetup(setup) {
             // Clear previous selections
             const fretElements = document.querySelectorAll('.fret');
@@ -236,10 +236,14 @@
         function loadSongSequence(sequence) {
             // Clear previous recorded setups
             recordedSetups = [];
+            selectedNotes = []; // Clear previous selected notes
 
             // Load new recorded setups
             sequence.forEach(setup => {
                 recordedSetups.push(setup);
+                setup.forEach(note => {
+                    selectedNotes.push(note);
+                });
             });
 
             // Update UI to display the loaded sequence
@@ -247,6 +251,7 @@
             updateCurrentStepDisplay();
             displaySetup(recordedSetups[currentStep]);
         }
+
 
         function stopPlayback() {
             stopAllNotes(); // Stop playing all notes
