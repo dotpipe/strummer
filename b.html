@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fretboard Diagram</title>
+    <title>Fretboard Diagram with Sequencer</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -54,7 +54,8 @@
         }
 
         .selected {
-            border-radius: 50%; /* Make selected squares round */
+            border-radius: 50%;
+            /* Make selected squares round */
         }
 
         .tooltip {
@@ -78,52 +79,64 @@
         }
 
         .interval-root {
-            background-color: #ff9999; /* Root note color */
+            background-color: #ff9999;
+            /* Root note color */
         }
 
         .interval-m2,
         .interval-d2 {
-            background-color: #ffcc99; /* Minor 2nd color */
+            background-color: #ffcc99;
+            /* Minor 2nd color */
         }
 
         .interval-M2 {
-            background-color: #ffff99; /* Major 2nd color */
+            background-color: #ffff99;
+            /* Major 2nd color */
         }
 
         .interval-m3 {
-            background-color: #ccff99; /* Minor 3rd color */
+            background-color: #ccff99;
+            /* Minor 3rd color */
         }
 
         .interval-M3 {
-            background-color: #99ff99; /* Major 3rd color */
+            background-color: #99ff99;
+            /* Major 3rd color */
         }
 
         .interval-P4 {
-            background-color: #99ffcc; /* Perfect 4th color */
+            background-color: #99ffcc;
+            /* Perfect 4th color */
         }
 
         .interval-d5 {
-            background-color: #99ffff; /* Diminished 5th color */
+            background-color: #99ffff;
+            /* Diminished 5th color */
         }
 
         .interval-P5 {
-            background-color: #99ccff; /* Perfect 5th color */
+            background-color: #99ccff;
+            /* Perfect 5th color */
         }
 
         .interval-m6 {
-            background-color: #9999ff; /* Minor 6th color */
+            background-color: #9999ff;
+            /* Minor 6th color */
         }
 
         .interval-M6 {
-            background-color: #cc99ff; /* Major 6th color */
+            background-color: #cc99ff;
+            /* Major 6th color */
         }
 
         .interval-m7 {
-            background-color: #ff99ff; /* Minor 7th color */
+            background-color: #ff99ff;
+            /* Minor 7th color */
         }
 
         .interval-M7 {
-            background-color: #ff99cc; /* Major 7th color */
+            background-color: #ff99cc;
+            /* Major 7th color */
         }
 
         .controls {
@@ -140,6 +153,17 @@
             border: none;
             border-radius: 4px;
         }
+
+        .sequence-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .sequence-step {
+            margin: 0 10px;
+        }
     </style>
 </head>
 
@@ -149,9 +173,20 @@
         <div class="controls">
             <button id="startAudio" class="button">Start Audio</button>
             <button id="recordSetup" class="button">Record Setup</button>
+            <button id="updateSetup" class="button">Update Setup</button>
             <button id="playUpStrum" class="button">Play Up Strum</button>
             <button id="playDownStrum" class="button">Play Down Strum</button>
             <button id="playSequence" class="button">Play Sequence</button>
+        </div>
+        <div class="sequence-controls">
+            <button id="prevStep" class="button">Previous Step</button>
+            <span id="currentStep" class="sequence-step">Step: 0</span>
+            <button id="nextStep" class="button">Next Step</button>
+        </div>
+        <div class="stop-save-controls">
+            <button onclick="stopPlayback()">Stop Playback</button>
+            <input type="file" id="loadSequenceInput" accept=".json" onchange="loadSequence(event)">
+            <button onclick="saveSequence()">Save Sequence</button>
         </div>
         <div class="fretboard" id="fretboard">
             <!-- Frets dynamically generated here -->
@@ -160,14 +195,85 @@
     <script>
         let audioContext;
         const selectedNotes = [];
-        const recordedSetups = [];
+        let recordedSetups = [];
+        let currentStep = -1;
         const NUM_FRETS = 24;
+        let isPlaying = false; // Flag to track if the sequence is currently playing
+        function loadSequence(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const sequenceData = e.target.result;
+                const parsedSequence = JSON.parse(sequenceData);
+                loadSongSequence(parsedSequence);
+            };
+            reader.readAsText(file);
+        }
+        
+        function displaySetup(setup) {
+            // Clear previous selections
+            const fretElements = document.querySelectorAll('.fret');
+            fretElements.forEach(fretElement => {
+                fretElement.classList.remove('selected');
+                fretElement.classList.remove('note-minor');
+                fretElement.classList.remove('note-major');
+                removeTooltip(fretElement);
+            });
+
+            // Display the new setup
+            setup.forEach(note => {
+                const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
+                if (fretElement) {
+                    fretElement.classList.add('selected');
+                    const tooltipText = `${note.fret}: ${calculateNoteName(note.string, note.fret)}`;
+                    addTooltip(fretElement, tooltipText);
+                }
+            });
+        }
+
+        function loadSongSequence(sequence) {
+            // Clear previous recorded setups
+            recordedSetups = [];
+
+            // Load new recorded setups
+            sequence.forEach(setup => {
+                recordedSetups.push(setup);
+            });
+
+            // Update UI to display the loaded sequence
+            currentStep = 0;
+            updateCurrentStepDisplay();
+            displaySetup(recordedSetups[currentStep]);
+        }
+
+        function stopPlayback() {
+            stopAllNotes(); // Stop playing all notes
+            isPlaying = false; // Set the flag to indicate playback has stopped
+        }
+
+        function saveSequence() {
+            const sequenceData = JSON.stringify(recordedSetups);
+            const blob = new Blob([sequenceData], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'song_sequence.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
 
         document.getElementById('startAudio').addEventListener('click', initAudioContext);
         document.getElementById('recordSetup').addEventListener('click', recordSetup);
+        document.getElementById('updateSetup').addEventListener('click', updateSetup);
         document.getElementById('playUpStrum').addEventListener('click', playUpStrum);
         document.getElementById('playDownStrum').addEventListener('click', playDownStrum);
         document.getElementById('playSequence').addEventListener('click', playSequence);
+        document.getElementById('prevStep').addEventListener('click', prevStep);
+        document.getElementById('nextStep').addEventListener('click', nextStep);
 
         function initAudioContext() {
             if (!audioContext) {
@@ -242,12 +348,10 @@
         }
 
         function playSelectedNotesAscending() {
-            // Stop any currently playing notes
-            stopAllNotes();
+            if (!audioContext) return;
 
-            // Sort selected notes by string and fret in ascending order
             const sortedNotes = selectedNotes.slice().sort((a, b) => {
-                if (a.string === b.string) {
+                if (a.fret !== b.fret) {
                     return a.fret - b.fret;
                 }
                 return a.string - b.string;
@@ -256,17 +360,15 @@
             // Play sorted notes with a delay between each
             sortedNotes.forEach((note, index) => {
                 const frequency = calculateFrequency(note.string, note.fret);
-                setTimeout(() => playSoundFrequency(frequency), index * 20);
+                setTimeout(() => playSoundFrequency(frequency), index * 200);
             });
         }
 
         function playSelectedNotesDescending() {
-            // Stop any currently playing notes
-            stopAllNotes();
+            if (!audioContext) return;
 
-            // Sort selected notes by string and fret in descending order
             const sortedNotes = selectedNotes.slice().sort((a, b) => {
-                if (a.string === b.string) {
+                if (a.fret !== b.fret) {
                     return b.fret - a.fret;
                 }
                 return b.string - a.string;
@@ -275,7 +377,7 @@
             // Play sorted notes with a delay between each
             sortedNotes.forEach((note, index) => {
                 const frequency = calculateFrequency(note.string, note.fret);
-                setTimeout(() => playSoundFrequency(frequency), index * 20);
+                setTimeout(() => playSoundFrequency(frequency), index * 200);
             });
         }
 
@@ -423,9 +525,24 @@
             if (selectedNotes.length > 0) {
                 const setup = selectedNotes.slice();
                 recordedSetups.push(setup);
+                currentStep = recordedSetups.length - 1;
+                updateCurrentStepDisplay();
                 alert('Setup recorded!');
             } else {
                 alert('No notes selected to record.');
+            }
+        }
+
+        function updateSetup() {
+            if (currentStep >= 0 && currentStep < recordedSetups.length) {
+                if (selectedNotes.length > 0) {
+                    recordedSetups[currentStep] = selectedNotes.slice();
+                    alert('Setup updated!');
+                } else {
+                    alert('No notes selected to update.');
+                }
+            } else {
+                alert('No setup selected to update.');
             }
         }
 
@@ -483,6 +600,55 @@
 
             // Play notes in ascending order
             playSelectedNotesAscending();
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                loadSetup(recordedSetups[currentStep]);
+                updateCurrentStepDisplay();
+            } else {
+                alert('No previous step.');
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < recordedSetups.length - 1) {
+                currentStep++;
+                loadSetup(recordedSetups[currentStep]);
+                updateCurrentStepDisplay();
+            } else {
+                alert('No next step.');
+            }
+        }
+
+        function loadSetup(setup) {
+            // Clear current selected notes
+            selectedNotes.length = 0;
+            // Reset fretboard
+            const fretElements = document.querySelectorAll('.fret');
+            fretElements.forEach(fretElement => {
+                fretElement.classList.remove('selected');
+                fretElement.className = 'fret'; // Remove all interval classes
+                removeTooltip(fretElement);
+            });
+
+            // Select notes from setup
+            setup.forEach(note => {
+                const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
+                if (fretElement) {
+                    selectedNotes.push(note);
+                    fretElement.classList.add('selected');
+                    addTooltip(fretElement);
+                }
+            });
+
+            // Update all tooltips
+            updateAllTooltips();
+        }
+
+        function updateCurrentStepDisplay() {
+            document.getElementById('currentStep').innerText = `Step: ${currentStep + 1}`;
         }
     </script>
 </body>
