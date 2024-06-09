@@ -125,13 +125,34 @@
         .interval-M7 {
             background-color: #ff99cc; /* Major 7th color */
         }
+
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
         <h1 style="text-align: center;">Guitar Fretboard Diagram</h1>
-        <button id="startAudio">Start Audio</button>
+        <div class="controls">
+            <button id="startAudio" class="button">Start Audio</button>
+            <button id="recordSetup" class="button">Record Setup</button>
+            <button id="playUpStrum" class="button">Play Up Strum</button>
+            <button id="playDownStrum" class="button">Play Down Strum</button>
+            <button id="playSequence" class="button">Play Sequence</button>
+        </div>
         <div class="fretboard" id="fretboard">
             <!-- Frets dynamically generated here -->
         </div>
@@ -139,9 +160,14 @@
     <script>
         let audioContext;
         const selectedNotes = [];
+        const recordedSetups = [];
         const NUM_FRETS = 24;
 
         document.getElementById('startAudio').addEventListener('click', initAudioContext);
+        document.getElementById('recordSetup').addEventListener('click', recordSetup);
+        document.getElementById('playUpStrum').addEventListener('click', playUpStrum);
+        document.getElementById('playDownStrum').addEventListener('click', playDownStrum);
+        document.getElementById('playSequence').addEventListener('click', playSequence);
 
         function initAudioContext() {
             if (!audioContext) {
@@ -207,7 +233,8 @@
             // Update all tooltips based on new lowest note
             updateAllTooltips();
 
-            playSelectedNotesAscending(); // Play notes in ascending order
+            // Play notes in ascending order
+            playSelectedNotesAscending();
         }
 
         function findNoteIndex(array, note) {
@@ -224,6 +251,25 @@
                     return a.fret - b.fret;
                 }
                 return a.string - b.string;
+            });
+
+            // Play sorted notes with a delay between each
+            sortedNotes.forEach((note, index) => {
+                const frequency = calculateFrequency(note.string, note.fret);
+                setTimeout(() => playSoundFrequency(frequency), index * 20);
+            });
+        }
+
+        function playSelectedNotesDescending() {
+            // Stop any currently playing notes
+            stopAllNotes();
+
+            // Sort selected notes by string and fret in descending order
+            const sortedNotes = selectedNotes.slice().sort((a, b) => {
+                if (a.string === b.string) {
+                    return b.fret - a.fret;
+                }
+                return b.string - a.string;
             });
 
             // Play sorted notes with a delay between each
@@ -371,6 +417,72 @@
                 default:
                     break;
             }
+        }
+
+        function recordSetup() {
+            if (selectedNotes.length > 0) {
+                const setup = selectedNotes.slice();
+                recordedSetups.push(setup);
+                alert('Setup recorded!');
+            } else {
+                alert('No notes selected to record.');
+            }
+        }
+
+        function playUpStrum() {
+            if (selectedNotes.length > 0) {
+                playSelectedNotesAscending();
+            } else {
+                alert('No notes selected to play.');
+            }
+        }
+
+        function playDownStrum() {
+            if (selectedNotes.length > 0) {
+                playSelectedNotesDescending();
+            } else {
+                alert('No notes selected to play.');
+            }
+        }
+
+        function playSequence() {
+            if (recordedSetups.length > 0) {
+                recordedSetups.forEach((setup, index) => {
+                    setTimeout(() => {
+                        playSetup(setup);
+                    }, index * 1000); // Play each setup with a delay
+                });
+            } else {
+                alert('No setups recorded.');
+            }
+        }
+
+        function playSetup(setup) {
+            // Clear current selected notes
+            selectedNotes.length = 0;
+            // Reset fretboard
+            const fretElements = document.querySelectorAll('.fret');
+            fretElements.forEach(fretElement => {
+                fretElement.classList.remove('selected');
+                fretElement.className = 'fret'; // Remove all interval classes
+                removeTooltip(fretElement);
+            });
+
+            // Select notes from setup
+            setup.forEach(note => {
+                const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
+                if (fretElement) {
+                    selectedNotes.push(note);
+                    fretElement.classList.add('selected');
+                    addTooltip(fretElement);
+                }
+            });
+
+            // Update all tooltips
+            updateAllTooltips();
+
+            // Play notes in ascending order
+            playSelectedNotesAscending();
         }
     </script>
 </body>
