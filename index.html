@@ -242,19 +242,6 @@
         let volume = 0.5;
         let isUpstrum = false;
 
-        function loadSequence(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const sequenceData = e.target.result;
-                const parsedSequence = JSON.parse(sequenceData);
-                loadSongSequence(parsedSequence);
-            };
-            reader.readAsText(file);
-        }
-
         function setTimeSignature(beatsPerMeasure, beatUnit) {
             timeSignature.beatsPerMeasure = beatsPerMeasure;
             timeSignature.beatUnit = beatUnit;
@@ -719,10 +706,48 @@
                     selectedNotes.push(note);
                     fretElement.classList.add('selected');
                     addTooltip(fretElement);
+                    if (!note.isRest) {
+                        playSoundFrequency(calculateFrequency(note.string, note.fret), note.duration);
+                    }
                 }
             });
 
             updateAllTooltips();
+        }
+
+
+        function loadSequence(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const sequenceData = e.target.result;
+                const parsedSequence = JSON.parse(sequenceData);
+
+                tempo = parsedSequence.tempo;
+                timeSignature = parsedSequence.timeSignature;
+                volume = parsedSequence.volume;
+
+                recordedSetups = parsedSequence.setups.map(setup => setup.map(note => ({
+                    string: note.string,
+                    fret: note.fret,
+                    duration: note.duration,
+                    isRest: note.isRest
+                })));
+
+                // Update UI elements with loaded data
+                document.getElementById('tempo').value = tempo;
+                // Assume timeSignature radio buttons have values matching the JSON structure
+                document.querySelector(`input[name="timeSignature"][value="${timeSignature.beatsPerMeasure}/${timeSignature.beatUnit}"]`).checked = true;
+                document.getElementById('volume-slider').value = volume * 100;
+                document.getElementById('volume-value').innerText = volume * 100;
+
+                currentStep = 0;
+                loadSetup(recordedSetups[currentStep]);
+                updateCurrentStepDisplay();
+            };
+            reader.readAsText(file);
         }
 
         function updateCurrentStepDisplay() {
