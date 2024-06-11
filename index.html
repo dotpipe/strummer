@@ -13,6 +13,23 @@
             background-color: #f4f4f4;
         }
 
+        .button {
+            padding: 10px;
+            margin: 5px;
+            border: none;
+            background-color: #f0f0f0;
+            cursor: pointer;
+        }
+
+        .button.active {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .radio-label {
+            margin-right: 10px;
+        }
+
         .container {
             max-width: 800px;
             margin: 20px auto;
@@ -55,7 +72,6 @@
 
         .selected {
             border-radius: 50%;
-            /* Make selected squares round */
         }
 
         .tooltip {
@@ -80,78 +96,56 @@
 
         .interval-root {
             background-color: #ff9999;
-            /* Root note color */
         }
 
         .interval-m2,
         .interval-d2 {
             background-color: #ffcc99;
-            /* Minor 2nd color */
         }
 
         .interval-M2 {
             background-color: #ffff99;
-            /* Major 2nd color */
         }
 
         .interval-m3 {
             background-color: #ccff99;
-            /* Minor 3rd color */
         }
 
         .interval-M3 {
             background-color: #99ff99;
-            /* Major 3rd color */
         }
 
         .interval-P4 {
             background-color: #99ffcc;
-            /* Perfect 4th color */
         }
 
         .interval-d5 {
             background-color: #99ffff;
-            /* Diminished 5th color */
         }
 
         .interval-P5 {
             background-color: #99ccff;
-            /* Perfect 5th color */
         }
 
         .interval-m6 {
             background-color: #9999ff;
-            /* Minor 6th color */
         }
 
         .interval-M6 {
             background-color: #cc99ff;
-            /* Major 6th color */
         }
 
         .interval-m7 {
             background-color: #ff99ff;
-            /* Minor 7th color */
         }
 
         .interval-M7 {
             background-color: #ff99cc;
-            /* Major 7th color */
         }
 
         .controls {
             text-align: center;
             margin-top: 20px;
-        }
-
-        .button {
-            padding: 10px 20px;
-            margin: 5px;
-            cursor: pointer;
-            background-color: #333;
-            color: #fff;
-            border: none;
-            border-radius: 4px;
         }
 
         .sequence-controls {
@@ -163,6 +157,21 @@
 
         .sequence-step {
             margin: 0 10px;
+        }
+
+        .slider-container {
+            position: relative;
+            width: 100px;
+            height: 30px;
+            margin: 20px auto;
+        }
+
+        .slider-knob {
+            width: 100%;
+            height: 10px;
+            background: #007bff;
+            outline: none;
+            -webkit-appearance: none;
         }
     </style>
 </head>
@@ -188,8 +197,34 @@
             <input type="file" id="loadSequenceInput" accept=".json" onchange="loadSequence(event)">
             <button onclick="saveSequence()">Save Sequence</button>
         </div>
-        <div class="fretboard" id="fretboard">
-            <!-- Frets dynamically generated here -->
+        <div class="fretboard" id="fretboard"></div>
+        <div class="container">
+            <div class="time-signature-controls">
+                <label class="radio-label"><input type="radio" name="timeSignature" value="4/4" checked
+                        onclick="setTimeSignature(4, 4)"> 4/4</label>
+                <label class="radio-label"><input type="radio" name="timeSignature" value="3/4"
+                        onclick="setTimeSignature(3, 4)"> 3/4</label>
+            </div>
+            <div class="note-duration-controls">
+                <button class="button" id="whole-note" onclick="setNoteDuration('whole')">1/1 Note</button>
+                <button class="button" id="half-note" onclick="setNoteDuration('half')">1/2 Note</button>
+                <button class="button" id="quarter-note" onclick="setNoteDuration('quarter')">1/4 Note</button>
+                <button class="button" id="eighth-note" onclick="setNoteDuration('eighth')">1/8 Note</button>
+                <button class="button" id="sixteenth-note" onclick="setNoteDuration('sixteenth')">1/16 Note</button>
+                <button class="button" id="thirtysecond-note" onclick="setNoteDuration('thirtysecond')">1/32
+                    Note</button>
+                <button class="button" id="sixtyfourth-note" onclick="setNoteDuration('sixtyfourth')">1/64 Note</button>
+            </div>
+            <div class="slider-container">
+                <input type="range" min="0" max="100" value="50" id="volume-slider" class="slider-knob">
+                <div class="slider-label">Volume: <span id="volume-value">50</span></div>
+            </div>
+            <div class="tempo-control">
+                <label for="tempo">Tempo (BPM): </label>
+                <input type="number" id="tempo" name="tempo" value="120" min="40" max="240"
+                    oninput="updateTempo(this.value)">
+            </div>
+            <button onclick="playNoteOrRest()">Play Note/Rest</button>
         </div>
     </div>
     <script>
@@ -198,7 +233,15 @@
         let recordedSetups = [];
         let currentStep = -1;
         const NUM_FRETS = 24;
-        let isPlaying = false; // Flag to track if the sequence is currently playing
+
+        let isPlaying = false;
+        let currentDuration = 'quarter';
+        let isRestOrNote = false;
+        let tempo = 120;
+        let timeSignature = { beatsPerMeasure: 4, beatUnit: 4 };
+        let volume = 0.5;
+        let isUpstrum = false;
+
         function loadSequence(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -212,54 +255,140 @@
             reader.readAsText(file);
         }
 
-        function displaySetup(setup) {
-            // Clear previous selections
-            const fretElements = document.querySelectorAll('.fret');
-            fretElements.forEach(fretElement => {
-                fretElement.classList.remove('selected');
-                fretElement.classList.remove('note-minor');
-                fretElement.classList.remove('note-major');
-                removeTooltip(fretElement);
-            });
+        function setTimeSignature(beatsPerMeasure, beatUnit) {
+            timeSignature.beatsPerMeasure = beatsPerMeasure;
+            timeSignature.beatUnit = beatUnit;
+            console.log(`Time signature set to ${beatsPerMeasure}/${beatUnit}`);
+        }
 
-            // Display the new setup
-            setup.forEach(note => {
-                const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
-                if (fretElement) {
-                    fretElement.classList.add('selected');
-                    const tooltipText = `${note.fret}: ${calculateNoteName(note.string, note.fret)}`;
-                    addTooltip(fretElement, tooltipText);
+        function setNoteDuration(duration) {
+            currentDuration = duration;
+            isRestOrNote = false;
+            updateButtonUI(duration, 'note');
+        }
+
+        function setRestDuration(duration) {
+            currentDuration = duration;
+            isRestOrNote = true;
+            updateButtonUI(duration, 'rest');
+        }
+
+        function setStrum(strum) {
+            isUpstrum = strum === 'up';
+        }
+
+        function updateTempo(newTempo) {
+            tempo = newTempo;
+            console.log(`Tempo set to ${tempo} BPM`);
+        }
+
+        function updateVolume(newVolume) {
+            volume = newVolume / 100;
+            document.getElementById('volume-value').innerText = newVolume;
+            console.log(`Volume set to ${volume}`);
+        }
+
+        function playNoteOrRest() {
+            const durationFactor = calculateDuration();
+            const durationInMilliseconds = (60 / tempo) * 1000 * (4 / timeSignature.beatUnit) * durationFactor;
+
+            if (isRestOrNote) {
+                console.log(`Rest for ${durationFactor} of a measure (${durationInMilliseconds} ms)`);
+            } else {
+                console.log(`Note for ${durationFactor} of a measure (${durationInMilliseconds} ms)`);
+            }
+
+            setTimeout(() => {
+                console.log(`Finished playing ${isRestOrNote ? 'rest' : 'note'}`);
+            }, durationInMilliseconds);
+        }
+
+        function updateButtonUI(duration, type) {
+            const buttonId = `${type === 'note' ? '' : 'rest-'}${duration}`;
+            const buttons = document.querySelectorAll('.button');
+            buttons.forEach(button => {
+                if (button.id === buttonId) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
                 }
             });
         }
 
-        function loadSongSequence(sequence) {
-            // Clear previous recorded setups
-            recordedSetups = [];
-            selectedNotes = []; // Clear previous selected notes
+        function highlightActiveButton() {
+            document.querySelectorAll('.button').forEach(button => button.classList.remove('active'));
 
-            // Load new recorded setups
-            sequence.forEach(setup => {
-                recordedSetups.push(setup);
-                setup.forEach(note => {
-                    selectedNotes.push(note);
+            if (isRestOrNote) {
+                const restButton = document.getElementById(currentDuration + '-rest');
+                if (restButton) {
+                    restButton.classList.add('active');
+                } else {
+                    console.error(`Rest button with id ${currentDuration + '-rest'} not found`);
+                }
+            } else {
+                const noteButton = document.getElementById(currentDuration + '-note');
+                if (noteButton) {
+                    noteButton.classList.add('active');
+                } else {
+                    console.error(`Note button with id ${currentDuration + '-note'} not found`);
+                }
+            }
+        }
+
+        function playSequence() {
+            if (recordedSetups.length > 0) {
+                recordedSetups.forEach((setup, index) => {
+                    setTimeout(() => {
+                        playSetup(setup);
+                    }, index * 1000);
                 });
+            } else {
+                alert('No setups recorded.');
+            }
+        }
+
+        function playSetup(setup) {
+            selectedNotes.length = 0;
+            const fretElements = document.querySelectorAll('.fret');
+            fretElements.forEach(fretElement => {
+                fretElement.classList.remove('selected');
+                fretElement.className = 'fret';
+                removeTooltip(fretElement);
             });
 
-            // Update UI to display the loaded sequence
-            currentStep = 0;
-            updateCurrentStepDisplay();
-            displaySetup(recordedSetups[currentStep]);
+            setup.forEach(note => {
+                const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
+                if (fretElement) {
+                    selectedNotes.push(note);
+                    fretElement.classList.add('selected');
+                    addTooltip(fretElement);
+                    if (!note.isRest) {
+                        playSoundFrequency(calculateFrequency(note.string, note.fret), note.duration);
+                    }
+                }
+            });
+
+            updateAllTooltips();
+            if (isUpstrum) {
+                playSelectedNotesAscending();
+            } else {
+                playSelectedNotesDescending();
+            }
         }
 
-
-        function stopPlayback() {
-            stopAllNotes(); // Stop playing all notes
-            isPlaying = false; // Set the flag to indicate playback has stopped
-        }
 
         function saveSequence() {
-            const sequenceData = JSON.stringify(recordedSetups);
+            const sequenceData = JSON.stringify({
+                setups: recordedSetups.map(setup => setup.map(note => ({
+                    string: note.string,
+                    fret: note.fret,
+                    duration: note.duration,
+                    isRest: note.isRest
+                }))),
+                tempo,
+                timeSignature,
+                volume
+            });
             const blob = new Blob([sequenceData], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -271,19 +400,21 @@
             URL.revokeObjectURL(url);
         }
 
+
         document.getElementById('startAudio').addEventListener('click', initAudioContext);
         document.getElementById('recordSetup').addEventListener('click', recordSetup);
         document.getElementById('updateSetup').addEventListener('click', updateSetup);
-        document.getElementById('playUpStrum').addEventListener('click', playUpStrum);
-        document.getElementById('playDownStrum').addEventListener('click', playDownStrum);
+        document.getElementById('playUpStrum').addEventListener('click', () => setStrum('up'));
+        document.getElementById('playDownStrum').addEventListener('click', () => setStrum('down'));
         document.getElementById('playSequence').addEventListener('click', playSequence);
         document.getElementById('prevStep').addEventListener('click', prevStep);
         document.getElementById('nextStep').addEventListener('click', nextStep);
+        document.getElementById('volume-slider').addEventListener('input', (e) => updateVolume(e.target.value));
 
         function initAudioContext() {
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                document.getElementById('startAudio').style.display = 'none'; // Hide the button after initializing
+                document.getElementById('startAudio').style.display = 'none';
                 generateFretboard();
             }
         }
@@ -325,28 +456,24 @@
         function toggleNote(event) {
             const string = parseInt(event.target.dataset.string);
             const fret = parseInt(event.target.dataset.fret);
-            const note = { string, fret };
+            const note = { string, fret, duration: currentDuration, isRest: isRestOrNote };
 
             const index = findNoteIndex(selectedNotes, note);
             if (index !== -1) {
-                // Note already selected, remove it
                 selectedNotes.splice(index, 1);
                 event.target.classList.remove('selected');
-                event.target.className = 'fret'; // Remove all interval classes
+                event.target.className = 'fret';
                 removeTooltip(event.target);
             } else {
-                // Note not selected, add it
                 selectedNotes.push(note);
                 event.target.classList.add('selected');
                 addTooltip(event.target);
+                playSoundFrequency(calculateFrequency(string, fret), currentDuration);
             }
 
-            // Update all tooltips based on new lowest note
             updateAllTooltips();
-
-            // Play notes in ascending order
-            playSelectedNotesAscending();
         }
+
 
         function findNoteIndex(array, note) {
             return array.findIndex(item => item.string === note.string && item.fret === note.fret);
@@ -386,43 +513,49 @@
             });
         }
 
-        function stopAllNotes() {
-            selectedNotes.forEach(note => {
-                stopSound(note);
-            });
-        }
 
-        function stopSound(note) {
+        function playSoundFrequency(frequency, duration) {
             const oscillator = audioContext.createOscillator();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(calculateFrequency(note.string, note.fret), audioContext.currentTime);
             const gainNode = audioContext.createGain();
-            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.05); // Short stop time to prevent sound
-        }
 
-        function playSoundFrequency(frequency) {
-            const oscillator = audioContext.createOscillator();
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-            const gainNode = audioContext.createGain();
-            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+
             const attackTime = 0.05;
             const decayTime = 0.2;
             const sustainLevel = 0.8;
             const releaseTime = 0.3;
-            const duration = attackTime + decayTime + releaseTime;
-            const endTime = audioContext.currentTime + duration;
-            gainNode.gain.linearRampToValueAtTime(1, audioContext.currentTime + attackTime);
-            gainNode.gain.linearRampToValueAtTime(sustainLevel, audioContext.currentTime + attackTime + decayTime);
-            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration);
+            const durationInSeconds = calculateDurationInSeconds(duration);
+
+            const endTime = audioContext.currentTime + durationInSeconds;
+
+            // gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + attackTime);
+            // gainNode.gain.linearRampToValueAtTime(sustainLevel * volume, audioContext.currentTime + attackTime + decayTime);
+            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + durationInSeconds);
+
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
             oscillator.start();
             oscillator.stop(endTime);
+        }
+
+        function calculateDurationInSeconds(duration) {
+            const durationFactors = {
+                whole: 4,
+                half: 2,
+                quarter: 1,
+                eighth: 0.5,
+                sixteenth: 0.25,
+                thirtysecond: 0.125,
+                sixtyfourth: 0.0625
+            };
+            return (60 / tempo) * durationFactors[duration];
+        }
+
+        function calculateDuration(attackTime, decayTime, releaseTime) {
+            return attackTime + decayTime + releaseTime;
         }
 
         function addTooltip(element) {
@@ -551,62 +684,6 @@
             }
         }
 
-        function playUpStrum() {
-            if (selectedNotes.length > 0) {
-                playSelectedNotesAscending();
-            } else {
-                alert('No notes selected to play.');
-            }
-        }
-
-        function playDownStrum() {
-            if (selectedNotes.length > 0) {
-                playSelectedNotesDescending();
-            } else {
-                alert('No notes selected to play.');
-            }
-        }
-
-        function playSequence() {
-            if (recordedSetups.length > 0) {
-                recordedSetups.forEach((setup, index) => {
-                    setTimeout(() => {
-                        playSetup(setup);
-                    }, index * 1000); // Play each setup with a delay
-                });
-            } else {
-                alert('No setups recorded.');
-            }
-        }
-
-        function playSetup(setup) {
-            // Clear current selected notes
-            selectedNotes.length = 0;
-            // Reset fretboard
-            const fretElements = document.querySelectorAll('.fret');
-            fretElements.forEach(fretElement => {
-                fretElement.classList.remove('selected');
-                fretElement.className = 'fret'; // Remove all interval classes
-                removeTooltip(fretElement);
-            });
-
-            // Select notes from setup
-            setup.forEach(note => {
-                const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
-                if (fretElement) {
-                    selectedNotes.push(note);
-                    fretElement.classList.add('selected');
-                    addTooltip(fretElement);
-                }
-            });
-
-            // Update all tooltips
-            updateAllTooltips();
-
-            // Play notes in ascending order
-            playSelectedNotesAscending();
-        }
-
         function prevStep() {
             if (currentStep > 0) {
                 currentStep--;
@@ -628,17 +705,14 @@
         }
 
         function loadSetup(setup) {
-            // Clear current selected notes
             selectedNotes.length = 0;
-            // Reset fretboard
             const fretElements = document.querySelectorAll('.fret');
             fretElements.forEach(fretElement => {
                 fretElement.classList.remove('selected');
-                fretElement.className = 'fret'; // Remove all interval classes
+                fretElement.className = 'fret';
                 removeTooltip(fretElement);
             });
 
-            // Select notes from setup
             setup.forEach(note => {
                 const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
                 if (fretElement) {
@@ -648,7 +722,6 @@
                 }
             });
 
-            // Update all tooltips
             updateAllTooltips();
         }
 
