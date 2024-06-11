@@ -215,6 +215,17 @@
                     Note</button>
                 <button class="button" id="sixtyfourth-note" onclick="setNoteDuration('sixtyfourth')">1/64 Note</button>
             </div>
+            <div class="rest-duration-controls">
+                <button class="button" id="whole-rest" onclick="setRestDuration('whole')">1/1 Rest</button>
+                <button class="button" id="half-rest" onclick="setRestDuration('half')">1/2 Rest</button>
+                <button class="button" id="quarter-rest" onclick="setRestDuration('quarter')">1/4 Rest</button>
+                <button class="button" id="eighth-rest" onclick="setRestDuration('eighth')">1/8 Rest</button>
+                <button class="button" id="sixteenth-rest" onclick="setRestDuration('sixteenth')">1/16 Rest</button>
+                <button class="button" id="thirtysecond-rest" onclick="setRestDuration('thirtysecond')">1/32
+                    Rest</button>
+                <button class="button" id="sixtyfourth-rest" onclick="setRestDuration('sixtyfourth')">1/64 Rest</button>
+            </div>
+
             <div class="slider-container">
                 <input type="range" min="0" max="100" value="50" id="volume-slider" class="slider-knob">
                 <div class="slider-label">Volume: <span id="volume-value">50</span></div>
@@ -259,6 +270,7 @@
             isRestOrNote = true;
             updateButtonUI(duration, 'rest');
         }
+
 
         function setStrum(strum) {
             isUpstrum = strum === 'up';
@@ -363,7 +375,6 @@
             }
         }
 
-
         function saveSequence() {
             const sequenceData = JSON.stringify({
                 setups: recordedSetups.map(setup => setup.map(note => ({
@@ -386,7 +397,6 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
-
 
         document.getElementById('startAudio').addEventListener('click', initAudioContext);
         document.getElementById('recordSetup').addEventListener('click', recordSetup);
@@ -455,12 +465,14 @@
                 selectedNotes.push(note);
                 event.target.classList.add('selected');
                 addTooltip(event.target);
-                playSoundFrequency(calculateFrequency(string, fret), currentDuration);
+                if (!isRestOrNote) {
+                    playSoundFrequency(calculateFrequency(string, fret), currentDuration);
+                } else {
+                    console.log(`Rest for ${currentDuration} duration`);
+                }
             }
-
             updateAllTooltips();
         }
-
 
         function findNoteIndex(array, note) {
             return array.findIndex(item => item.string === note.string && item.fret === note.fret);
@@ -691,30 +703,38 @@
             }
         }
 
-        function loadSetup(setup) {
-            selectedNotes.length = 0;
-            const fretElements = document.querySelectorAll('.fret');
-            fretElements.forEach(fretElement => {
-                fretElement.classList.remove('selected');
-                fretElement.className = 'fret';
-                removeTooltip(fretElement);
-            });
+        function loadSequence(event) {
+            const file = event.target.files[0];
+            if (!file) return;
 
-            setup.forEach(note => {
-                const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
-                if (fretElement) {
-                    selectedNotes.push(note);
-                    fretElement.classList.add('selected');
-                    addTooltip(fretElement);
-                    if (!note.isRest) {
-                        playSoundFrequency(calculateFrequency(note.string, note.fret), note.duration);
-                    }
-                }
-            });
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const sequenceData = e.target.result;
+                const parsedSequence = JSON.parse(sequenceData);
 
-            updateAllTooltips();
+                tempo = parsedSequence.tempo;
+                timeSignature = parsedSequence.timeSignature;
+                volume = parsedSequence.volume;
+
+                recordedSetups = parsedSequence.setups.map(setup => setup.map(note => ({
+                    string: note.string,
+                    fret: note.fret,
+                    duration: note.duration,
+                    isRest: note.isRest
+                })));
+
+                // Update UI elements with loaded data
+                document.getElementById('tempo').value = tempo;
+                document.querySelector(`input[name="timeSignature"][value="${timeSignature.beatsPerMeasure}/${timeSignature.beatUnit}"]`).checked = true;
+                document.getElementById('volume-slider').value = volume * 100;
+                document.getElementById('volume-value').innerText = volume * 100;
+
+                currentStep = 0;
+                loadSetup(recordedSetups[currentStep]);
+                updateCurrentStepDisplay();
+            };
+            reader.readAsText(file);
         }
-
 
         function loadSequence(event) {
             const file = event.target.files[0];
