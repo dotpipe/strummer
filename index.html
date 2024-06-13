@@ -384,7 +384,7 @@
                     duration: note.duration,
                     isRest: note.isRest,
                     strum: isUpstrum ? 'up' : 'down'
-                }),step++)),
+                }), step++)),
                 tempo,
                 timeSignature,
                 volume
@@ -756,7 +756,7 @@
             };
             reader.readAsText(file);
         }
-        
+
         function loadSetup(setup) {
             selectedNotes.length = 0;
             const fretElements = document.querySelectorAll('.fret');
@@ -777,6 +777,21 @@
 
             updateAllTooltips();
         }
+
+        // Event listener for the 
+        // 'beforeunload' event
+        window.addEventListener('beforeunload',
+            function (e) {
+                {
+                    // Cancel the event and
+                    // show alert that the unsaved
+                    // changes would be lost
+                    saveSequence();
+                    e.preventDefault();
+                    e.returnValue = '';
+                }
+            });
+
 
         function updateCurrentStepDisplay() {
             document.getElementById('currentStep').innerText = `Step: ${currentStep + 1}`;
