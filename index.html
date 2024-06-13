@@ -183,8 +183,8 @@
             <button id="startAudio" class="button">Start Audio</button>
             <button id="recordSetup" class="button">Record Setup</button>
             <button id="updateSetup" class="button">Update Setup</button>
-            <button id="playUpStrum" class="button">Play Up Strum</button>
-            <button id="playDownStrum" class="button">Play Down Strum</button>
+            <button id="playUpStrum" onclick="playSelectedNotesDescending()" class="button">Play Up Strum</button>
+            <button id="playDownStrum" onclick="playSelectedNotesAscending()" class="button">Play Down Strum</button>
             <button id="playSequence" class="button">Play Sequence</button>
         </div>
         <div class="sequence-controls">
@@ -232,7 +232,7 @@
             </div>
             <div class="tempo-control">
                 <label for="tempo">Tempo (BPM): </label>
-                <input type="number" id="tempo" name="tempo" value="120" min="40" max="240"
+                <input type="number" id="tempo" name="tempo" value="120" min="40" max="300"
                     oninput="updateTempo(this.value)">
             </div>
             <button onclick="playNoteOrRest()">Play Note/Rest</button>
@@ -270,7 +270,6 @@
             isRestOrNote = true;
             updateButtonUI(duration, 'rest');
         }
-
 
         function setStrum(strum) {
             isUpstrum = strum === 'up';
@@ -339,7 +338,7 @@
                 recordedSetups.forEach((setup, index) => {
                     setTimeout(() => {
                         playSetup(setup);
-                    }, index * 1000);
+                    }, index * 200);
                 });
             } else {
                 alert('No setups recorded.');
@@ -381,7 +380,8 @@
                     string: note.string,
                     fret: note.fret,
                     duration: note.duration,
-                    isRest: note.isRest
+                    isRest: note.isRest,
+                    strum: isUpstrum ? 'up' : 'down'
                 }))),
                 tempo,
                 timeSignature,
@@ -512,7 +512,6 @@
             });
         }
 
-
         function playSoundFrequency(frequency, duration) {
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
@@ -522,16 +521,9 @@
 
             gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
 
-            const attackTime = 0.05;
-            const decayTime = 0.2;
-            const sustainLevel = 0.8;
-            const releaseTime = 0.3;
             const durationInSeconds = calculateDurationInSeconds(duration);
-
             const endTime = audioContext.currentTime + durationInSeconds;
 
-            // gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + attackTime);
-            // gainNode.gain.linearRampToValueAtTime(sustainLevel * volume, audioContext.currentTime + attackTime + decayTime);
             gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + durationInSeconds);
 
             oscillator.connect(gainNode);
@@ -553,8 +545,17 @@
             return (60 / tempo) * durationFactors[duration];
         }
 
-        function calculateDuration(attackTime, decayTime, releaseTime) {
-            return attackTime + decayTime + releaseTime;
+        function calculateDuration() {
+            const durationFactors = {
+                whole: 4,
+                half: 2,
+                quarter: 1,
+                eighth: 0.5,
+                sixteenth: 0.25,
+                thirtysecond: 0.125,
+                sixtyfourth: 0.0625
+            };
+            return durationFactors[currentDuration];
         }
 
         function addTooltip(element) {
@@ -661,6 +662,9 @@
         function recordSetup() {
             if (selectedNotes.length > 0) {
                 const setup = selectedNotes.slice();
+                setup.forEach(note => {
+                    note.strum = isUpstrum ? 'up' : 'down';
+                });
                 recordedSetups.push(setup);
                 currentStep = recordedSetups.length - 1;
                 updateCurrentStepDisplay();
@@ -674,6 +678,9 @@
             if (currentStep >= 0 && currentStep < recordedSetups.length) {
                 if (selectedNotes.length > 0) {
                     recordedSetups[currentStep] = selectedNotes.slice();
+                    recordedSetups[currentStep].forEach(note => {
+                        note.strum = isUpstrum ? 'up' : 'down';
+                    });
                     alert('Setup updated!');
                 } else {
                     alert('No notes selected to update.');
@@ -703,37 +710,13 @@
             }
         }
 
-        function loadSequence(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const sequenceData = e.target.result;
-                const parsedSequence = JSON.parse(sequenceData);
-
-                tempo = parsedSequence.tempo;
-                timeSignature = parsedSequence.timeSignature;
-                volume = parsedSequence.volume;
-
-                recordedSetups = parsedSequence.setups.map(setup => setup.map(note => ({
-                    string: note.string,
-                    fret: note.fret,
-                    duration: note.duration,
-                    isRest: note.isRest
-                })));
-
-                // Update UI elements with loaded data
-                document.getElementById('tempo').value = tempo;
-                document.querySelector(`input[name="timeSignature"][value="${timeSignature.beatsPerMeasure}/${timeSignature.beatUnit}"]`).checked = true;
-                document.getElementById('volume-slider').value = volume * 100;
-                document.getElementById('volume-value').innerText = volume * 100;
-
-                currentStep = 0;
-                loadSetup(recordedSetups[currentStep]);
-                updateCurrentStepDisplay();
-            };
-            reader.readAsText(file);
+        function stopPlayback() {
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+                isPlaying = false;
+                console.log("Playback stopped.");
+            }
         }
 
         function loadSequence(event) {
@@ -753,12 +736,12 @@
                     string: note.string,
                     fret: note.fret,
                     duration: note.duration,
-                    isRest: note.isRest
+                    isRest: note.isRest,
+                    strum: note.strum
                 })));
 
                 // Update UI elements with loaded data
                 document.getElementById('tempo').value = tempo;
-                // Assume timeSignature radio buttons have values matching the JSON structure
                 document.querySelector(`input[name="timeSignature"][value="${timeSignature.beatsPerMeasure}/${timeSignature.beatUnit}"]`).checked = true;
                 document.getElementById('volume-slider').value = volume * 100;
                 document.getElementById('volume-value').innerText = volume * 100;
