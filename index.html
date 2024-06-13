@@ -173,6 +173,17 @@
             outline: none;
             -webkit-appearance: none;
         }
+
+        .indicator {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .feedback {
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+        }
     </style>
 </head>
 
@@ -185,6 +196,7 @@
             <button id="updateSetup" class="button">Update Setup</button>
             <button id="playUpStrum" onclick="playSelectedNotesDescending()" class="button">Play Up Strum</button>
             <button id="playDownStrum" onclick="playSelectedNotesAscending()" class="button">Play Down Strum</button>
+            <button id="compareStrums" onclick="compareStrums()" class="button">Compare Strums</button>
             <button id="playSequence" class="button">Play Sequence</button>
         </div>
         <div class="sequence-controls">
@@ -198,12 +210,16 @@
             <button onclick="saveSequence()">Save Sequence</button>
         </div>
         <div class="fretboard" id="fretboard"></div>
+        <div class="indicator" id="indicator"></div>
+        <div class="feedback" id="feedback">
+            <p>Which strum did you prefer?</p>
+            <button onclick="recordFeedback('Ascending')" class="button">Ascending</button>
+            <button onclick="recordFeedback('Descending')" class="button">Descending</button>
+        </div>
         <div class="container">
             <div class="time-signature-controls">
-                <label class="radio-label"><input type="radio" name="timeSignature" value="4/4" checked
-                        onclick="setTimeSignature(4, 4)"> 4/4</label>
-                <label class="radio-label"><input type="radio" name="timeSignature" value="3/4"
-                        onclick="setTimeSignature(3, 4)"> 3/4</label>
+                <label class="radio-label"><input type="radio" name="timeSignature" value="4/4" checked onclick="setTimeSignature(4, 4)"> 4/4</label>
+                <label class="radio-label"><input type="radio" name="timeSignature" value="3/4" onclick="setTimeSignature(3, 4)"> 3/4</label>
             </div>
             <div class="note-duration-controls">
                 <button class="button" id="whole-note" onclick="setNoteDuration('whole')">1/1 Note</button>
@@ -211,8 +227,7 @@
                 <button class="button" id="quarter-note" onclick="setNoteDuration('quarter')">1/4 Note</button>
                 <button class="button" id="eighth-note" onclick="setNoteDuration('eighth')">1/8 Note</button>
                 <button class="button" id="sixteenth-note" onclick="setNoteDuration('sixteenth')">1/16 Note</button>
-                <button class="button" id="thirtysecond-note" onclick="setNoteDuration('thirtysecond')">1/32
-                    Note</button>
+                <button class="button" id="thirtysecond-note" onclick="setNoteDuration('thirtysecond')">1/32 Note</button>
                 <button class="button" id="sixtyfourth-note" onclick="setNoteDuration('sixtyfourth')">1/64 Note</button>
             </div>
             <div class="rest-duration-controls">
@@ -221,8 +236,7 @@
                 <button class="button" id="quarter-rest" onclick="setRestDuration('quarter')">1/4 Rest</button>
                 <button class="button" id="eighth-rest" onclick="setRestDuration('eighth')">1/8 Rest</button>
                 <button class="button" id="sixteenth-rest" onclick="setRestDuration('sixteenth')">1/16 Rest</button>
-                <button class="button" id="thirtysecond-rest" onclick="setRestDuration('thirtysecond')">1/32
-                    Rest</button>
+                <button class="button" id="thirtysecond-rest" onclick="setRestDuration('thirtysecond')">1/32 Rest</button>
                 <button class="button" id="sixtyfourth-rest" onclick="setRestDuration('sixtyfourth')">1/64 Rest</button>
             </div>
 
@@ -232,8 +246,7 @@
             </div>
             <div class="tempo-control">
                 <label for="tempo">Tempo (BPM): </label>
-                <input type="number" id="tempo" name="tempo" value="120" min="40" max="300"
-                    oninput="updateTempo(this.value)">
+                <input type="number" id="tempo" name="tempo" value="120" min="40" max="300" oninput="updateTempo(this.value)">
             </div>
             <button onclick="playNoteOrRest()">Play Note/Rest</button>
         </div>
@@ -481,6 +494,8 @@
             return array.findIndex(item => item.string === note.string && item.fret === note.fret);
         }
 
+        let playTimeouts = [];
+
         function playSelectedNotesAscending() {
             if (!audioContext) return;
 
@@ -494,7 +509,9 @@
             // Play sorted notes with a delay between each
             sortedNotes.forEach((note, index) => {
                 const frequency = calculateFrequency(note.string, note.fret);
-                setTimeout(() => playSoundFrequency(frequency), index * 200);
+                console.log(`Playing frequency (Ascending): ${frequency} Hz`);
+                const timeoutId = setTimeout(() => playSoundFrequency(frequency, 1), index * 200);
+                playTimeouts.push(timeoutId);
             });
         }
 
@@ -511,8 +528,45 @@
             // Play sorted notes with a delay between each
             sortedNotes.forEach((note, index) => {
                 const frequency = calculateFrequency(note.string, note.fret);
-                setTimeout(() => playSoundFrequency(frequency), index * 200);
+                console.log(`Playing frequency (Descending): ${frequency} Hz`);
+                const timeoutId = setTimeout(() => playSoundFrequency(frequency, 1), index * 200);
+                playTimeouts.push(timeoutId);
             });
+        }
+
+        function compareStrums() {
+            if (!audioContext) return;
+
+            // Play ascending strum
+            playSelectedNotesAscending();
+            document.getElementById('indicator').innerText = 'Playing Ascending Strum...';
+
+            // Pause and then play descending strum
+            const totalDuration = selectedNotes.length * 200;
+            const compareTimeoutId = setTimeout(() => {
+                document.getElementById('indicator').innerText = 'Playing Descending Strum...';
+                playSelectedNotesDescending();
+            }, totalDuration + 500);
+            playTimeouts.push(compareTimeoutId);
+
+            // Show feedback options after both strums are played
+            const feedbackTimeoutId = setTimeout(() => {
+                document.getElementById('indicator').innerText = '';
+                document.getElementById('feedback').style.display = 'block';
+            }, totalDuration * 2 + 1000);
+            playTimeouts.push(feedbackTimeoutId);
+        }
+
+        function recordFeedback(strumType) {
+            console.log(`User preferred: ${strumType} Strum`);
+            document.getElementById('feedback').style.display = 'none';
+            document.getElementById('indicator').innerText = `You preferred: ${strumType} Strum`;
+        }
+
+        function calculateFrequency(string, fret) {
+            const OPEN_STRING_FREQUENCIES = [329.63, 246.94, 196.00, 146.83, 110.00, 82.41];
+            const baseFrequency = OPEN_STRING_FREQUENCIES[string];
+            return baseFrequency * Math.pow(2, fret / 12);
         }
 
         function playSoundFrequency(frequency, duration) {
@@ -527,7 +581,8 @@
             const durationInSeconds = calculateDurationInSeconds(duration);
             const endTime = audioContext.currentTime + durationInSeconds;
 
-            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + durationInSeconds);
+
+            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1); //durationInSeconds);
 
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
@@ -548,17 +603,94 @@
             return (60 / tempo) * durationFactors[duration];
         }
 
-        function calculateDuration() {
-            const durationFactors = {
-                whole: 4,
-                half: 2,
-                quarter: 1,
-                eighth: 0.5,
-                sixteenth: 0.25,
-                thirtysecond: 0.125,
-                sixtyfourth: 0.0625
-            };
-            return durationFactors[currentDuration];
+        function stopPlayback() {
+            if (audioContext) {
+                // Clear all timeouts to stop animations
+                playTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+                playTimeouts = [];
+
+                audioContext.close();
+                audioContext = null;
+                isPlaying = false;
+                console.log("Playback stopped.");
+                document.getElementById('indicator').innerText = '';
+                document.getElementById('feedback').style.display = 'none';
+            }
+        }
+
+        document.getElementById('startAudio').addEventListener('click', initAudioContext);
+        document.getElementById('recordSetup').addEventListener('click', recordSetup);
+        document.getElementById('updateSetup').addEventListener('click', updateSetup);
+        document.getElementById('playUpStrum').addEventListener('click', () => setStrum('up'));
+        document.getElementById('playDownStrum').addEventListener('click', () => setStrum('down'));
+        document.getElementById('playSequence').addEventListener('click', playSequence);
+        document.getElementById('prevStep').addEventListener('click', prevStep);
+        document.getElementById('nextStep').addEventListener('click', nextStep);
+        document.getElementById('tempo').addEventListener('click', (e) => updateTempo(e.target.value));
+        document.getElementById('volume-slider').addEventListener('input', (e) => updateVolume(e.target.value));
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                document.getElementById('startAudio').style.display = 'none';
+                generateFretboard();
+            }
+        }
+
+        function generateFretboard() {
+            for (let string = 0; string < 6; string++) {
+                const stringDiv = document.createElement('div');
+                stringDiv.className = 'string';
+
+                for (let fret = 0; fret < NUM_FRETS; fret++) {
+                    const fretDiv = document.createElement('div');
+                    fretDiv.className = 'fret';
+                    fretDiv.dataset.string = string;
+                    fretDiv.dataset.fret = fret;
+                    fretDiv.dataset.note = calculateNoteName(string, fret);
+                    fretDiv.classList.add(`note-${calculateNoteName(string, fret)}`);
+                    fretDiv.addEventListener('click', toggleNote);
+                    stringDiv.appendChild(fretDiv);
+                }
+
+                document.getElementById('fretboard').appendChild(stringDiv);
+            }
+        }
+
+        function calculateNoteName(string, fret) {
+            const NOTES = ['E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#'];
+            const openStringNotes = ['E', 'B', 'G', 'D', 'A', 'E']; // Note names of open strings
+            const baseNoteIndex = NOTES.indexOf(openStringNotes[string]);
+            const noteIndex = (baseNoteIndex + fret) % 12;
+            return NOTES[noteIndex];
+        }
+
+        function toggleNote(event) {
+            const string = parseInt(event.target.dataset.string);
+            const fret = parseInt(event.target.dataset.fret);
+            const note = { string, fret, duration: currentDuration, isRest: isRestOrNote };
+
+            const index = findNoteIndex(selectedNotes, note);
+            if (index !== -1) {
+                selectedNotes.splice(index, 1);
+                event.target.classList.remove('selected');
+                event.target.className = 'fret';
+                removeTooltip(event.target);
+            } else {
+                selectedNotes.push(note);
+                event.target.classList.add('selected');
+                addTooltip(event.target);
+                if (!isRestOrNote) {
+                    playSoundFrequency(calculateFrequency(string, fret), currentDuration);
+                } else {
+                    console.log(`Rest for ${currentDuration} duration`);
+                }
+            }
+            updateAllTooltips();
+        }
+
+        function findNoteIndex(array, note) {
+            return array.findIndex(item => item.string === note.string && item.fret === note.fret);
         }
 
         function addTooltip(element) {
@@ -666,6 +798,8 @@
             if (selectedNotes.length > 0) {
                 const setup = selectedNotes.slice();
                 setup.forEach(note => {
+                   
+
                     note.strum = isUpstrum ? 'up' : 'down';
                 });
                 recordedSetups.push(setup);
@@ -786,12 +920,10 @@
                     // Cancel the event and
                     // show alert that the unsaved
                     // changes would be lost
-                    saveSequence();
                     e.preventDefault();
                     e.returnValue = '';
                 }
             });
-
 
         function updateCurrentStepDisplay() {
             document.getElementById('currentStep').innerText = `Step: ${currentStep + 1}`;
