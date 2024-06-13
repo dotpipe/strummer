@@ -375,14 +375,16 @@
         }
 
         function saveSequence() {
+            var step = 0;
             const sequenceData = JSON.stringify({
                 setups: recordedSetups.map(setup => setup.map(note => ({
+                    step: step,
                     string: note.string,
                     fret: note.fret,
                     duration: note.duration,
                     isRest: note.isRest,
                     strum: isUpstrum ? 'up' : 'down'
-                }))),
+                }),step++)),
                 tempo,
                 timeSignature,
                 volume
@@ -406,6 +408,7 @@
         document.getElementById('playSequence').addEventListener('click', playSequence);
         document.getElementById('prevStep').addEventListener('click', prevStep);
         document.getElementById('nextStep').addEventListener('click', nextStep);
+        document.getElementById('tempo').addEventListener('click', (e) => updateTempo(e.target.value));
         document.getElementById('volume-slider').addEventListener('input', (e) => updateVolume(e.target.value));
 
         function initAudioContext() {
@@ -733,6 +736,7 @@
                 volume = parsedSequence.volume;
 
                 recordedSetups = parsedSequence.setups.map(setup => setup.map(note => ({
+                    step: note.step,
                     string: note.string,
                     fret: note.fret,
                     duration: note.duration,
@@ -751,6 +755,27 @@
                 updateCurrentStepDisplay();
             };
             reader.readAsText(file);
+        }
+        
+        function loadSetup(setup) {
+            selectedNotes.length = 0;
+            const fretElements = document.querySelectorAll('.fret');
+            fretElements.forEach(fretElement => {
+                fretElement.classList.remove('selected');
+                fretElement.className = 'fret';
+                removeTooltip(fretElement);
+            });
+
+            setup.forEach(note => {
+                const fretElement = document.querySelector(`.fret[data-string="${note.string}"][data-fret="${note.fret}"]`);
+                if (fretElement) {
+                    selectedNotes.push(note);
+                    fretElement.classList.add('selected');
+                    addTooltip(fretElement);
+                }
+            });
+
+            updateAllTooltips();
         }
 
         function updateCurrentStepDisplay() {
