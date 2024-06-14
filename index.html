@@ -213,13 +213,15 @@
         <div class="indicator" id="indicator"></div>
         <div class="feedback" id="feedback">
             <p>Which strum did you prefer?</p>
-            <button onclick="recordFeedback('Ascending')" class="button">Ascending</button>
-            <button onclick="recordFeedback('Descending')" class="button">Descending</button>
+            <button onclick="setStrum('down');recordFeedback('Ascending')" class="button">Ascending</button>
+            <button onclick="setStrum('up');recordFeedback('Descending')" class="button">Descending</button>
         </div>
         <div class="container">
             <div class="time-signature-controls">
-                <label class="radio-label"><input type="radio" name="timeSignature" value="4/4" checked onclick="setTimeSignature(4, 4)"> 4/4</label>
-                <label class="radio-label"><input type="radio" name="timeSignature" value="3/4" onclick="setTimeSignature(3, 4)"> 3/4</label>
+                <label class="radio-label"><input type="radio" name="timeSignature" value="4/4" checked
+                        onclick="setTimeSignature(4, 4)"> 4/4</label>
+                <label class="radio-label"><input type="radio" name="timeSignature" value="3/4"
+                        onclick="setTimeSignature(3, 4)"> 3/4</label>
             </div>
             <div class="note-duration-controls">
                 <button class="button" id="whole-note" onclick="setNoteDuration('whole')">1/1 Note</button>
@@ -227,7 +229,8 @@
                 <button class="button" id="quarter-note" onclick="setNoteDuration('quarter')">1/4 Note</button>
                 <button class="button" id="eighth-note" onclick="setNoteDuration('eighth')">1/8 Note</button>
                 <button class="button" id="sixteenth-note" onclick="setNoteDuration('sixteenth')">1/16 Note</button>
-                <button class="button" id="thirtysecond-note" onclick="setNoteDuration('thirtysecond')">1/32 Note</button>
+                <button class="button" id="thirtysecond-note" onclick="setNoteDuration('thirtysecond')">1/32
+                    Note</button>
                 <button class="button" id="sixtyfourth-note" onclick="setNoteDuration('sixtyfourth')">1/64 Note</button>
             </div>
             <div class="rest-duration-controls">
@@ -236,17 +239,137 @@
                 <button class="button" id="quarter-rest" onclick="setRestDuration('quarter')">1/4 Rest</button>
                 <button class="button" id="eighth-rest" onclick="setRestDuration('eighth')">1/8 Rest</button>
                 <button class="button" id="sixteenth-rest" onclick="setRestDuration('sixteenth')">1/16 Rest</button>
-                <button class="button" id="thirtysecond-rest" onclick="setRestDuration('thirtysecond')">1/32 Rest</button>
+                <button class="button" id="thirtysecond-rest" onclick="setRestDuration('thirtysecond')">1/32
+                    Rest</button>
                 <button class="button" id="sixtyfourth-rest" onclick="setRestDuration('sixtyfourth')">1/64 Rest</button>
             </div>
 
+            <div class="mode-scale-controls">
+                <label for="mode-selector">Mode:</label>
+                <select id="mode-selector">
+                    <option value="ionian">Ionian</option>
+                    <option value="dorian">Dorian</option>
+                    <option value="phrygian">Phrygian</option>
+                    <option value="lydian">Lydian</option>
+                    <option value="mixolydian">Mixolydian</option>
+                    <option value="aeolian">Aeolian</option>
+                    <option value="locrian">Locrian</option>
+                </select>
+
+                <label for="root-note-selector">Root Note:</label>
+                <select id="root-note-selector">
+                    <!-- Options will be populated by JavaScript based on the selected mode -->
+                </select>
+            </div>
             <div class="slider-container">
                 <input type="range" min="0" max="100" value="50" id="volume-slider" class="slider-knob">
                 <div class="slider-label">Volume: <span id="volume-value">50</span></div>
             </div>
+            <div class="tremolo-controls">
+                <label for="tremolo-bends">Bends:</label>
+                <input type="number" id="tremolo-bends" name="tremolo-bends" value="0" min="0" max="10"
+                    oninput="updateTremoloSettings()">
+
+                <label for="tremolo-max-height">Max Note Height (semitones):</label>
+                <input type="number" id="tremolo-max-height" name="tremolo-max-height" value="1" min="1" max="12"
+                    oninput="updateTremoloSettings()">
+            </div>
+
+            <script>
+                function updateTremoloSettings() {
+                    const bends = document.getElementById('tremolo-bends').value;
+                    const maxNoteHeight = document.getElementById('tremolo-max-height').value;
+                    setTremoloSettings(parseInt(bends), parseInt(maxNoteHeight));
+                }
+                let tremoloSettings = {
+                    bends: 3, // Number of bends
+                    maxNoteHeight: 1 // Maximum height in semitones
+                };
+
+                function setTremoloSettings(bends, maxNoteHeight) {
+                    tremoloSettings.bends = bends;
+                    tremoloSettings.maxNoteHeight = maxNoteHeight;
+                    console.log(`Tremolo settings updated: ${bends} bends, ${maxNoteHeight} semitones max height`);
+                }
+
+                function applyTremolo(noteFrequency) {
+                    const { bends, maxNoteHeight } = tremoloSettings;
+                    const originalFrequency = noteFrequency;
+                    const maxFrequency = noteFrequency * Math.pow(2, maxNoteHeight / 12);
+                    const durationPerBend = (60 / tempo) / (bends * 2); // duration of one half-bend
+
+                    for (let i = 0; i < bends * 2; i++) {
+                        setTimeout(() => {
+                            const targetFrequency = (i % 2 === 0) ? maxFrequency : originalFrequency;
+                            playSoundFrequency(targetFrequency, durationPerBend);
+                        }, i * durationPerBend * 1000);
+                    }
+                }
+
+                function playSoundFrequency(frequency, duration) {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+
+                    gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+
+                    const durationInSeconds = calculateDurationInSeconds(duration);
+                    const endTime = audioContext.currentTime + durationInSeconds;
+
+                    gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + durationInSeconds);
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.start();
+                    oscillator.stop(endTime);
+                }
+
+                function calculateDurationInSeconds(duration) {
+                    const durationFactors = {
+                        whole: 4,
+                        half: 2,
+                        quarter: 1,
+                        eighth: 0.5,
+                        sixteenth: 0.25,
+                        thirtysecond: 0.125,
+                        sixtyfourth: 0.0625
+                    };
+                    return (60 / tempo) * durationFactors[duration];
+                }
+
+                function toggleNoteWithTremolo(event) {
+                    const string = parseInt(event.target.dataset.string);
+                    const fret = parseInt(event.target.dataset.fret);
+                    const note = { string, fret, duration: currentDuration, isRest: isRestOrNote };
+
+                    const index = findNoteIndex(selectedNotes, note);
+                    if (index !== -1) {
+                        selectedNotes.splice(index, 1);
+                        event.target.classList.remove('selected');
+                        event.target.className = 'fret';
+                        removeTooltip(event.target);
+                    } else {
+                        selectedNotes.push(note);
+                        event.target.classList.add('selected');
+                        addTooltip(event.target);
+                        if (!isRestOrNote) {
+                            const frequency = calculateFrequency(string, fret);
+                            applyTremolo(frequency);
+                        } else {
+                            console.log(`Rest for ${currentDuration} duration`);
+                        }
+                    }
+                    updateAllTooltips();
+                }
+
+            </script>
+
             <div class="tempo-control">
                 <label for="tempo">Tempo (BPM): </label>
-                <input type="number" id="tempo" name="tempo" value="120" min="40" max="300" oninput="updateTempo(this.value)">
+                <input type="number" id="tempo" name="tempo" value="120" min="40" max="300"
+                    oninput="updateTempo(this.value)">
             </div>
             <button onclick="playNoteOrRest()">Play Note/Rest</button>
         </div>
@@ -265,6 +388,92 @@
         let timeSignature = { beatsPerMeasure: 4, beatUnit: 4 };
         let volume = 0.5;
         let isUpstrum = false;
+        const MODES = {
+            ionian: [0, 2, 4, 5, 7, 9, 11],
+            dorian: [0, 2, 3, 5, 7, 9, 10],
+            phrygian: [0, 1, 3, 5, 7, 8, 10],
+            lydian: [0, 2, 4, 6, 7, 9, 11],
+            mixolydian: [0, 2, 4, 5, 7, 9, 10],
+            aeolian: [0, 2, 3, 5, 7, 8, 10],
+            locrian: [0, 1, 3, 5, 6, 8, 10]
+        };
+
+        const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        let currentMode = 'ionian';
+        let rootNote = 'C';
+
+        function setMode(newMode) {
+            currentMode = newMode;
+            updateRootNoteSelector();
+            highlightNotes();
+        }
+
+        function setRoot(newRoot) {
+            rootNote = newRoot;
+            highlightNotes();
+        }
+
+        function updateRootNoteSelector() {
+            const rootNoteSelector = document.getElementById('root-note-selector');
+            rootNoteSelector.innerHTML = ''; // Clear existing options
+
+            const modeIntervals = MODES[currentMode];
+            modeIntervals.forEach(interval => {
+                const noteName = NOTES[(NOTES.indexOf(rootNote) + interval) % 12];
+                const option = document.createElement('option');
+                option.value = noteName;
+                option.text = noteName;
+                rootNoteSelector.appendChild(option);
+            });
+        }
+
+        function highlightNotes() {
+            const fretElements = document.querySelectorAll('.fret');
+            const rootIndex = NOTES.indexOf(rootNote);
+
+            fretElements.forEach(fretElement => {
+                const noteName = fretElement.dataset.note;
+                const noteIndex = NOTES.indexOf(noteName);
+                const interval = (noteIndex - rootIndex + 12) % 12;
+
+                fretElement.className = 'fret';
+                removeTooltip(fretElement);
+
+                if (MODES[currentMode].includes(interval)) {
+                    fretElement.classList.add('selected');
+                    addTooltip(fretElement, interval);
+                    updateIntervalColor(fretElement, interval);
+                }
+            });
+        }
+
+        function addTooltip(element, interval) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.innerText = intervalName(interval);
+            element.appendChild(tooltip);
+        }
+
+        function intervalName(interval) {
+            const INTERVAL_NAMES = ['Root', 'm2', 'M2', 'm3', 'M3', 'P4', 'd5', 'P5', 'm6', 'M6', 'm7', 'M7'];
+            return INTERVAL_NAMES[interval] || '';
+        }
+
+        function updateIntervalColor(element, interval) {
+            element.classList.remove('interval-root', 'interval-m2', 'interval-M2', 'interval-m3', 'interval-M3', 'interval-P4', 'interval-d5', 'interval-P5', 'interval-m6', 'interval-M6', 'interval-m7', 'interval-M7');
+            const intervalClasses = ['interval-root', 'interval-m2', 'interval-M2', 'interval-m3', 'interval-M3', 'interval-P4', 'interval-d5', 'interval-P5', 'interval-m6', 'interval-M6', 'interval-m7', 'interval-M7'];
+            if (interval >= 0 && interval < intervalClasses.length) {
+                element.classList.add(intervalClasses[interval]);
+            }
+        }
+
+        document.getElementById('mode-selector').addEventListener('change', (e) => setMode(e.target.value));
+        document.getElementById('root-note-selector').addEventListener('change', (e) => setRoot(e.target.value));
+
+        window.addEventListener('load', () => {
+            updateRootNoteSelector(); // Initialize the root note selector on page load
+            highlightNotes();
+        });
 
         function setTimeSignature(beatsPerMeasure, beatUnit) {
             timeSignature.beatsPerMeasure = beatsPerMeasure;
@@ -379,7 +588,7 @@
                 }
             });
 
-            updateAllTooltips();
+            // updateAllTooltips();
             if (isUpstrum) {
                 playSelectedNotesAscending();
             } else {
@@ -413,16 +622,6 @@
             URL.revokeObjectURL(url);
         }
 
-        document.getElementById('startAudio').addEventListener('click', initAudioContext);
-        document.getElementById('recordSetup').addEventListener('click', recordSetup);
-        document.getElementById('updateSetup').addEventListener('click', updateSetup);
-        document.getElementById('playUpStrum').addEventListener('click', () => setStrum('up'));
-        document.getElementById('playDownStrum').addEventListener('click', () => setStrum('down'));
-        document.getElementById('playSequence').addEventListener('click', playSequence);
-        document.getElementById('prevStep').addEventListener('click', prevStep);
-        document.getElementById('nextStep').addEventListener('click', nextStep);
-        document.getElementById('tempo').addEventListener('click', (e) => updateTempo(e.target.value));
-        document.getElementById('volume-slider').addEventListener('input', (e) => updateVolume(e.target.value));
 
         function initAudioContext() {
             if (!audioContext) {
@@ -452,13 +651,13 @@
             }
         }
 
-        function calculateNoteName(string, fret) {
-            const NOTES = ['E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#'];
-            const openStringNotes = ['E', 'B', 'G', 'D', 'A', 'E']; // Note names of open strings
-            const baseNoteIndex = NOTES.indexOf(openStringNotes[string]);
-            const noteIndex = (baseNoteIndex + fret) % 12;
-            return NOTES[noteIndex];
-        }
+        // function calculateNoteName(string, fret) {
+        //     const NOTES = ['E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#'];
+        //     const openStringNotes = ['E', 'B', 'G', 'D', 'A', 'E']; // Note names of open strings
+        //     const baseNoteIndex = NOTES.indexOf(openStringNotes[string]);
+        //     const noteIndex = (baseNoteIndex + fret) % 12;
+        //     return NOTES[noteIndex];
+        // }
 
         function calculateFrequency(string, fret) {
             const OPEN_STRING_FREQUENCIES = [329.63, 246.94, 196.00, 146.83, 110.00, 82.41];
@@ -563,11 +762,11 @@
             document.getElementById('indicator').innerText = `You preferred: ${strumType} Strum`;
         }
 
-        function calculateFrequency(string, fret) {
-            const OPEN_STRING_FREQUENCIES = [329.63, 246.94, 196.00, 146.83, 110.00, 82.41];
-            const baseFrequency = OPEN_STRING_FREQUENCIES[string];
-            return baseFrequency * Math.pow(2, fret / 12);
-        }
+        // function calculateFrequency(string, fret) {
+        //     const OPEN_STRING_FREQUENCIES = [329.63, 246.94, 196.00, 146.83, 110.00, 82.41];
+        //     const baseFrequency = OPEN_STRING_FREQUENCIES[string];
+        //     return baseFrequency * Math.pow(2, fret / 12);
+        // }
 
         function playSoundFrequency(frequency, duration) {
             const oscillator = audioContext.createOscillator();
@@ -582,12 +781,16 @@
             const endTime = audioContext.currentTime + durationInSeconds;
 
 
-            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1); //durationInSeconds);
+            gainNode.gain.linearRampToValueAtTime(audioContext.currentTime, durationInSeconds);
 
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
             oscillator.start();
-            oscillator.stop(endTime);
+            var yTime = Math.fround(endTime);
+            // console.log(endTime);
+            // while (yTime == NaN || yTime <= 0)
+            //     yTime = ++yTime;
+            oscillator.stop(audioContext.currentTime + durationInSeconds);
         }
 
         function calculateDurationInSeconds(duration) {
@@ -629,33 +832,33 @@
         document.getElementById('tempo').addEventListener('click', (e) => updateTempo(e.target.value));
         document.getElementById('volume-slider').addEventListener('input', (e) => updateVolume(e.target.value));
 
-        function initAudioContext() {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                document.getElementById('startAudio').style.display = 'none';
-                generateFretboard();
-            }
-        }
+        // function initAudioContext() {
+        //     if (!audioContext) {
+        //         audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        //         document.getElementById('startAudio').style.display = 'none';
+        //         generateFretboard();
+        //     }
+        // }
 
-        function generateFretboard() {
-            for (let string = 0; string < 6; string++) {
-                const stringDiv = document.createElement('div');
-                stringDiv.className = 'string';
+        // function generateFretboard() {
+        //     for (let string = 0; string < 6; string++) {
+        //         const stringDiv = document.createElement('div');
+        //         stringDiv.className = 'string';
 
-                for (let fret = 0; fret < NUM_FRETS; fret++) {
-                    const fretDiv = document.createElement('div');
-                    fretDiv.className = 'fret';
-                    fretDiv.dataset.string = string;
-                    fretDiv.dataset.fret = fret;
-                    fretDiv.dataset.note = calculateNoteName(string, fret);
-                    fretDiv.classList.add(`note-${calculateNoteName(string, fret)}`);
-                    fretDiv.addEventListener('click', toggleNote);
-                    stringDiv.appendChild(fretDiv);
-                }
+        //         for (let fret = 0; fret < NUM_FRETS; fret++) {
+        //             const fretDiv = document.createElement('div');
+        //             fretDiv.className = 'fret';
+        //             fretDiv.dataset.string = string;
+        //             fretDiv.dataset.fret = fret;
+        //             fretDiv.dataset.note = calculateNoteName(string, fret);
+        //             fretDiv.classList.add(`note-${calculateNoteName(string, fret)}`);
+        //             fretDiv.addEventListener('click', toggleNote);
+        //             stringDiv.appendChild(fretDiv);
+        //         }
 
-                document.getElementById('fretboard').appendChild(stringDiv);
-            }
-        }
+        //         document.getElementById('fretboard').appendChild(stringDiv);
+        //     }
+        // }
 
         function calculateNoteName(string, fret) {
             const NOTES = ['E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#'];
@@ -665,29 +868,29 @@
             return NOTES[noteIndex];
         }
 
-        function toggleNote(event) {
-            const string = parseInt(event.target.dataset.string);
-            const fret = parseInt(event.target.dataset.fret);
-            const note = { string, fret, duration: currentDuration, isRest: isRestOrNote };
+        // function toggleNote(event) {
+        //     const string = parseInt(event.target.dataset.string);
+        //     const fret = parseInt(event.target.dataset.fret);
+        //     const note = { string, fret, duration: currentDuration, isRest: isRestOrNote };
 
-            const index = findNoteIndex(selectedNotes, note);
-            if (index !== -1) {
-                selectedNotes.splice(index, 1);
-                event.target.classList.remove('selected');
-                event.target.className = 'fret';
-                removeTooltip(event.target);
-            } else {
-                selectedNotes.push(note);
-                event.target.classList.add('selected');
-                addTooltip(event.target);
-                if (!isRestOrNote) {
-                    playSoundFrequency(calculateFrequency(string, fret), currentDuration);
-                } else {
-                    console.log(`Rest for ${currentDuration} duration`);
-                }
-            }
-            updateAllTooltips();
-        }
+        //     const index = findNoteIndex(selectedNotes, note);
+        //     if (index !== -1) {
+        //         selectedNotes.splice(index, 1);
+        //         event.target.classList.remove('selected');
+        //         event.target.className = 'fret';
+        //         removeTooltip(event.target);
+        //     } else {
+        //         selectedNotes.push(note);
+        //         event.target.classList.add('selected');
+        //         addTooltip(event.target);
+        //         if (!isRestOrNote) {
+        //             playSoundFrequency(calculateFrequency(string, fret), currentDuration);
+        //         } else {
+        //             console.log(`Rest for ${currentDuration} duration`);
+        //         }
+        //     }
+        // updateAllTooltips();
+        // }
 
         function findNoteIndex(array, note) {
             return array.findIndex(item => item.string === note.string && item.fret === note.fret);
@@ -798,7 +1001,7 @@
             if (selectedNotes.length > 0) {
                 const setup = selectedNotes.slice();
                 setup.forEach(note => {
-                   
+
 
                     note.strum = isUpstrum ? 'up' : 'down';
                 });
