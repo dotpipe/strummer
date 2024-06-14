@@ -213,8 +213,8 @@
         <div class="indicator" id="indicator"></div>
         <div class="feedback" id="feedback">
             <p>Which strum did you prefer?</p>
-            <button onclick="recordFeedback('Ascending')" class="button">Ascending</button>
-            <button onclick="recordFeedback('Descending')" class="button">Descending</button>
+            <button onclick="setStrum('down');recordFeedback('Ascending')" class="button">Ascending</button>
+            <button onclick="setStrum('up');recordFeedback('Descending')" class="button">Descending</button>
         </div>
         <div class="container">
             <div class="time-signature-controls">
@@ -376,6 +376,10 @@
                     if (!note.isRest) {
                         playSoundFrequency(calculateFrequency(note.string, note.fret), note.duration);
                     }
+                    else {
+                        const yTime = audioContext.currentTime + note.duration;
+                        while (audioContext.currentTime < yTime);
+                    }
                 }
             });
 
@@ -416,8 +420,8 @@
         document.getElementById('startAudio').addEventListener('click', initAudioContext);
         document.getElementById('recordSetup').addEventListener('click', recordSetup);
         document.getElementById('updateSetup').addEventListener('click', updateSetup);
-        document.getElementById('playUpStrum').addEventListener('click', () => setStrum('up'));
-        document.getElementById('playDownStrum').addEventListener('click', () => setStrum('down'));
+        document.getElementById('playUpStrum').addEventListener('click', () => setStrum('down'));
+        document.getElementById('playDownStrum').addEventListener('click', () => setStrum('up'));
         document.getElementById('playSequence').addEventListener('click', playSequence);
         document.getElementById('prevStep').addEventListener('click', prevStep);
         document.getElementById('nextStep').addEventListener('click', nextStep);
@@ -561,6 +565,7 @@
             console.log(`User preferred: ${strumType} Strum`);
             document.getElementById('feedback').style.display = 'none';
             document.getElementById('indicator').innerText = `You preferred: ${strumType} Strum`;
+            note.strum = strumType == 'up' ? false : true;
         }
 
         function calculateFrequency(string, fret) {
@@ -618,16 +623,6 @@
             }
         }
 
-        document.getElementById('startAudio').addEventListener('click', initAudioContext);
-        document.getElementById('recordSetup').addEventListener('click', recordSetup);
-        document.getElementById('updateSetup').addEventListener('click', updateSetup);
-        document.getElementById('playUpStrum').addEventListener('click', () => setStrum('up'));
-        document.getElementById('playDownStrum').addEventListener('click', () => setStrum('down'));
-        document.getElementById('playSequence').addEventListener('click', playSequence);
-        document.getElementById('prevStep').addEventListener('click', prevStep);
-        document.getElementById('nextStep').addEventListener('click', nextStep);
-        document.getElementById('tempo').addEventListener('click', (e) => updateTempo(e.target.value));
-        document.getElementById('volume-slider').addEventListener('input', (e) => updateVolume(e.target.value));
 
         function initAudioContext() {
             if (!audioContext) {
@@ -798,8 +793,6 @@
             if (selectedNotes.length > 0) {
                 const setup = selectedNotes.slice();
                 setup.forEach(note => {
-                   
-
                     note.strum = isUpstrum ? 'up' : 'down';
                 });
                 recordedSetups.push(setup);
