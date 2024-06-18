@@ -248,7 +248,8 @@
                 <label for="tempo">Tempo (BPM): </label>
                 <input type="number" id="tempo" name="tempo" value="120" min="40" max="300" oninput="updateTempo(this.value)">
             </div>
-            <button onclick="playNoteOrRest()">Play Note/Rest</button>
+            <div id="plugins"></div>
+            
         </div>
     </div>
     <script>
@@ -922,6 +923,8 @@
             document.getElementById('currentStep').innerText = `Step: ${currentStep + 1}`;
         }
     </script>
-</body>
+
+<script src="bendplugin.js"></script></body>
+
 
 </html>
